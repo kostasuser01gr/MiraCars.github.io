@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<!--
+  Premium Crete Experience – Stateless single‑page website
+
+  This static site uses TailwindCSS via CDN for quick styling and a little
+  vanilla JavaScript to implement tab navigation, VIP content gating,
+  floating chat button and simple modal windows for legal pages.  The
+  design emphasises a modern, premium feel with a large hero image,
+  responsive layout and dark‑mode friendly colours.  Change the
+  constants inside script.js to customise the phone number, VIP code
+  and the legal text.  All strings are in Greek to match the user's
+  requirements.
+-->
+<html lang="el">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Κλείστε εύκολα αυτοκίνητο με τη Mira Cars και απολαύστε την Κρήτη με άνεση, πολυτέλεια και αποκλειστικές υπηρεσίες VIP." />
+    <title>Mira Cars – Σύστημα Κρατήσεων</title>
+    <!-- TailwindCSS CDN for utility styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Basic custom styles for nav and modals -->
+    <style>
+      /* Active tab underline */
+      .active-tab {
+        border-bottom-width: 2px;
+        border-color: theme('colors.blue.500');
+        color: theme('colors.blue.600');
+      }
+    </style>
+  </head>
+  <!-- Use a dark theme by default with light text; accent colours defined via Tailwind's orange palette -->
+  <body class="bg-gray-900 text-gray-100 font-sans">
+    <!-- Cookie banner appears until acceptance is stored in localStorage -->
+    <div id="cookie-banner" class="hidden fixed bottom-0 inset-x-0 bg-gray-800 text-white px-4 py-3 flex flex-col md:flex-row md:items-center md:justify-between space-y-2 md:space-y-0 z-50">
+      <p class="text-sm">Χρησιμοποιούμε cookies για να βελτιώσουμε την εμπειρία σας. Συνεχίζοντας αποδέχεστε την χρήση τους.</p>
+      <button onclick="acceptCookies()" class="self-start md:self-auto bg-blue-500 hover:bg-blue-600 text-sm font-semibold px-4 py-2 rounded">Αποδοχή</button>
+    </div>
+
+    <!-- Legal modal overlay -->
+    <div id="modal-overlay" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-40">
+      <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-lg w-11/12 md:w-2/3 max-h-[80vh] overflow-y-auto p-6 relative">
+        <button onclick="closeModal()" class="absolute top-2 right-2 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 text-2xl">&times;</button>
+        <h2 id="modal-title" class="text-xl font-semibold mb-4"></h2>
+        <div id="modal-body" class="prose dark:prose-invert max-w-none text-sm space-y-4"></div>
+      </div>
+    </div>
+
+    <!-- Floating chat button -->
+    <button id="chat-button" class="fixed bottom-6 right-4 md:right-8 bg-blue-600 hover:bg-blue-500 text-white rounded-full w-14 h-14 flex items-center justify-center shadow-lg z-40" aria-label="Συνομιλία" onclick="openChat()">
+      <span class="text-2xl">💬</span>
+    </button>
+
+    <!-- Settings panel (optional; currently hidden) -->
+    <div id="settings-panel" class="hidden fixed top-0 right-0 h-full w-80 bg-white dark:bg-gray-800 shadow-lg p-6 overflow-y-auto z-50">
+      <h3 class="text-lg font-semibold mb-4">Ρυθμίσεις</h3>
+      <p class="mb-2 text-sm">Αλλάξτε τον αριθμό τηλεφώνου, το VIP κωδικό ή τα μηνύματα καλωσορίσματος εδώ. Οι αλλαγές αποθηκεύονται στο localStorage.</p>
+      <label class="block mb-2 text-sm font-medium" for="phone-input">Τηλέφωνο</label>
+      <input id="phone-input" type="text" class="w-full border border-gray-300 dark:border-gray-700 rounded p-2 mb-4 bg-gray-100 dark:bg-gray-700" />
+      <label class="block mb-2 text-sm font-medium" for="vip-input">VIP κωδικός</label>
+      <input id="vip-input" type="text" class="w-full border border-gray-300 dark:border-gray-700 rounded p-2 mb-4 bg-gray-100 dark:bg-gray-700" />
+      <label class="block mb-2 text-sm font-medium" for="greeting-input">Μήνυμα καλωσορίσματος VIP</label>
+      <textarea id="greeting-input" rows="3" class="w-full border border-gray-300 dark:border-gray-700 rounded p-2 mb-4 bg-gray-100 dark:bg-gray-700"></textarea>
+      <button onclick="saveSettings()" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded">Αποθήκευση</button>
+      <button onclick="closeSettings()" class="ml-2 text-gray-600 hover:text-gray-800 dark:text-gray-300 dark:hover:text-gray-100">Κλείσιμο</button>
+    </div>
+
+    <!-- Admin login modal -->
+    <div id="login-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
+      <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-11/12 max-w-sm p-6 relative">
+        <button onclick="closeLogin()" class="absolute top-2 right-2 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 text-2xl">&times;</button>
+        <h3 class="text-lg font-semibold mb-4">Είσοδος Διαχειριστή</h3>
+        <div id="login-content">
+          <!-- Content injected by script (login or set password) -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Header / Navigation -->
+    <header class="sticky top-0 bg-white/80 dark:bg-gray-900/80 backdrop-blur border-b border-gray-100 dark:border-gray-800 z-30">
+      <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+        <div class="text-xl font-bold flex items-center space-x-2">
+          <span class="text-blue-600">Mira Cars</span>
+        </div>
+        <!-- Desktop navigation -->
+        <nav class="hidden md:flex space-x-6 text-sm font-medium">
+          <span class="nav-link active-tab" data-target="home" onclick="showTab('home')">Αρχική</span>
+          <span class="nav-link" data-target="guide" onclick="showTab('guide')">Οδηγός</span>
+          <span class="nav-link" data-target="booking" onclick="showTab('booking')">Κρατήσεις</span>
+          <span class="nav-link vip-link text-gray-400" data-target="concierge" onclick="handleVIP('concierge')">Concierge</span>
+          <span class="nav-link vip-link text-gray-400" data-target="deals" onclick="handleVIP('deals')">VIP Deals</span>
+          <span class="nav-link" onclick="openModal('legal')">Νομικά</span>
+          <span id="settings-link" class="nav-link" onclick="openSettings()">Ρυθμίσεις</span>
+          <span id="admin-auth-link" class="nav-link" onclick="toggleAuth()">Είσοδος</span>
+        </nav>
+        <!-- Mobile menu toggle -->
+        <button class="md:hidden text-gray-700 dark:text-gray-300" onclick="toggleMenu()" aria-label="Μενού">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-7 h-7">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 5.25h16.5M3.75 12h16.5m-16.5 6.75h16.5" />
+          </svg>
+        </button>
+      </div>
+      <!-- Mobile navigation menu -->
+      <div id="mobile-menu" class="md:hidden hidden px-4 pb-4 space-y-2 text-sm font-medium">
+        <span class="block nav-link active-tab" data-target="home" onclick="showTab('home');toggleMenu()">Αρχική</span>
+        <span class="block nav-link" data-target="guide" onclick="showTab('guide');toggleMenu()">Οδηγός</span>
+        <span class="block nav-link" data-target="booking" onclick="showTab('booking');toggleMenu()">Κρατήσεις</span>
+        <span class="block nav-link vip-link text-gray-400" data-target="concierge" onclick="handleVIP('concierge');toggleMenu()">Concierge</span>
+        <span class="block nav-link vip-link text-gray-400" data-target="deals" onclick="handleVIP('deals');toggleMenu()">VIP Deals</span>
+        <span class="block nav-link" onclick="openModal('legal');toggleMenu()">Νομικά</span>
+        <span id="mobile-settings-link" class="block nav-link" onclick="openSettings();toggleMenu()">Ρυθμίσεις</span>
+        <span id="mobile-admin-auth-link" class="block nav-link" onclick="toggleAuth();toggleMenu()">Είσοδος</span>
+      </div>
+    </header>
+
+    <!-- Main content area with tabbed sections -->
+    <main class="max-w-7xl mx-auto px-4 pt-8 pb-16 space-y-16">
+      <!-- Home / Hero section -->
+      <section id="home" class="tab-section">
+        <div class="relative rounded-xl overflow-hidden h-[26rem] md:h-[34rem]">
+          <img src="hero.webp" alt="Mira Cars" class="absolute inset-0 w-full h-full object-cover" />
+          <!-- Dark overlay -->
+          <div class="absolute inset-0 bg-black/60 flex flex-col items-center justify-center text-center p-4 space-y-6">
+            <div>
+              <h1 class="text-3xl md:text-5xl font-extrabold text-white mb-2 drop-shadow-md">Γρήγορα & Προσιτά</h1>
+              <p class="text-white/90 text-base md:text-lg max-w-2xl">Εξερευνήστε την Κρήτη με το ιδανικό αυτοκίνητο της Mira Cars. Πολυτέλεια, ασφάλεια και πλήρη ελευθερία στις επιλογές σας.</p>
+            </div>
+            <!-- Search overlay panel -->
+            <form id="hero-search" class="bg-white/90 dark:bg-gray-800/90 backdrop-blur rounded-lg p-4 md:p-6 flex flex-col md:flex-row space-y-3 md:space-y-0 md:space-x-4 items-center w-full max-w-3xl">
+              <select id="hero-car-category" class="w-full md:w-1/4 rounded border border-gray-300 dark:border-gray-700 p-2 bg-gray-100 dark:bg-gray-700 text-sm text-gray-800 dark:text-gray-200" aria-label="Κατηγορία οχήματος"></select>
+              <input type="date" id="hero-pickup-date" class="w-full md:w-1/4 rounded border border-gray-300 dark:border-gray-700 p-2 bg-gray-100 dark:bg-gray-700 text-sm text-gray-800 dark:text-gray-200" aria-label="Ημ/νία παραλαβής" />
+              <input type="date" id="hero-dropoff-date" class="w-full md:w-1/4 rounded border border-gray-300 dark:border-gray-700 p-2 bg-gray-100 dark:bg-gray-700 text-sm text-gray-800 dark:text-gray-200" aria-label="Ημ/νία επιστροφής" />
+              <button type="submit" class="w-full md:w-auto bg-blue-600 hover:bg-blue-500 text-white font-semibold px-4 py-2 rounded">Αναζήτηση</button>
+            </form>
+          </div>
+        </div>
+        <!-- Highlights section -->
+        <div class="mt-12 grid grid-cols-1 md:grid-cols-3 gap-8">
+          <div class="rounded-lg bg-white dark:bg-gray-800 shadow p-6 flex flex-col items-start space-y-3 hover:-translate-y-1 transition-transform">
+            <span class="text-blue-600 text-3xl">🚗</span>
+            <h3 class="text-lg font-semibold">Πλούσια Γκάμα Οχημάτων</h3>
+            <p class="text-sm text-gray-600 dark:text-gray-400">Από οικονομικά αυτοκίνητα έως SUV και πολυτελή μοντέλα – διαλέξτε αυτό που σας ταιριάζει.</p>
+          </div>
+          <div class="rounded-lg bg-white dark:bg-gray-800 shadow p-6 flex flex-col items-start space-y-3 hover:-translate-y-1 transition-transform">
+            <span class="text-green-600 text-3xl">⚙️</span>
+            <h3 class="text-lg font-semibold">Υψηλή Ποιότητα Υπηρεσιών</h3>
+            <p class="text-sm text-gray-600 dark:text-gray-400">Καλοσυντηρημένα οχήματα, άμεση εξυπηρέτηση και 24/7 υποστήριξη για να οδηγείτε χωρίς άγχος.</p>
+          </div>
+          <div class="rounded-lg bg-white dark:bg-gray-800 shadow p-6 flex flex-col items-start space-y-3 hover:-translate-y-1 transition-transform">
+            <span class="text-purple-600 text-3xl">💳</span>
+            <h3 class="text-lg font-semibold">Ευέλικτες Πληρωμές</h3>
+            <p class="text-sm text-gray-600 dark:text-gray-400">Επιλέξτε από πολλούς τρόπους πληρωμής, όπως κάρτα, PayPal, τραπεζική κατάθεση ή πληρωμή στην παραλαβή.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Guide section (public) -->
+      <section id="guide" class="tab-section hidden space-y-8">
+        <h2 class="text-2xl font-bold">Οδηγός Κρήτης</h2>
+        <p class="text-sm md:text-base text-gray-700 dark:text-gray-300 max-w-3xl">Εδώ θα βρείτε προτεινόμενες διαδρομές 3–5 ημερών, tips για μετακίνηση και την καλύτερη εποχή για επίσκεψη. Ετοιμάστε το ταξίδι σας με τις πιο ενημερωμένες συμβουλές.</p>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+          <div class="p-6 bg-white dark:bg-gray-800 rounded-lg shadow">
+            <h3 class="font-semibold mb-2">3ήμερη Περιπέτεια</h3>
+            <ul class="list-disc list-inside text-sm space-y-1">
+              <li>Ημέρα 1: Χανιά και παλιά πόλη</li>
+              <li>Ημέρα 2: Μπάλος & Γραμβούσα</li>
+              <li>Ημέρα 3: Φαράγγι Σαμαριάς</li>
+            </ul>
+          </div>
+          <div class="p-6 bg-white dark:bg-gray-800 rounded-lg shadow">
+            <h3 class="font-semibold mb-2">5ήμερη Απόδραση</h3>
+            <ul class="list-disc list-inside text-sm space-y-1">
+              <li>Ημέρα 1: Ρέθυμνο & παραδοσιακά χωριά</li>
+              <li>Ημέρα 2: Ελαφονήσι & Κεδρόδασος</li>
+              <li>Ημέρα 3: Ηράκλειο & Κνωσός</li>
+              <li>Ημέρα 4: Πρέβελη & Πλακιάς</li>
+              <li>Ημέρα 5: Μάταλα & Τυμπάκι</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- Booking section (public) -->
+      <section id="booking" class="tab-section hidden space-y-8">
+        <h2 class="text-2xl font-bold">Κρατήσεις Mira Cars</h2>
+        <p class="text-sm md:text-base text-gray-700 dark:text-gray-300 max-w-3xl">Κλείστε εύκολα το αυτοκίνητο των ονείρων σας. Επιλέξτε ημερομηνίες, κατηγορία οχήματος και μέθοδο πληρωμής. Τα στοιχεία αποστέλλονται στον διαχειριστή μέσω email.</p>
+        <form id="booking-form" class="space-y-6">
+          <!-- Row with personal and booking details -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- Personal details -->
+            <div class="space-y-4">
+              <div>
+                <label for="name" class="block text-sm font-medium mb-1">Ονοματεπώνυμο</label>
+                <input type="text" id="name" required class="w-full rounded border border-gray-300 dark:border-gray-700 p-2 bg-gray-100 dark:bg-gray-700" />
+              </div>
+              <div>
+                <label for="email" class="block text-sm font-medium mb-1">Email</label>
+                <input type="email" id="email" required class="w-full rounded border border-gray-300 dark:border-gray-700 p-2 bg-gray-100 dark:bg-gray-700" />
+              </div>
+              <div>
+                <label for="phone" class="block text-sm font-medium mb-1">Τηλέφωνο</label>
+                <input type="tel" id="phone" required class="w-full rounded border border-gray-300 dark:border-gray-700 p-2 bg-gray-100 dark:bg-gray-700" />
+              </div>
+            </div>
+            <!-- Booking details -->
+            <div class="space-y-4">
+              <div class="grid grid-cols-2 gap-4">
+                <div>
+                  <label for="pickup-date" class="block text-sm font-medium mb-1">Ημ/νία παραλαβής</label>
+                  <input type="date" id="pickup-date" required class="w-full rounded border border-gray-300 dark:border-gray-700 p-2 bg-gray-100 dark:bg-gray-700" />
+                </div>
+                <div>
+                  <label for="dropoff-date" class="block text-sm font-medium mb-1">Ημ/νία επιστροφής</label>
+                  <input type="date" id="dropoff-date" required class="w-full rounded border border-gray-300 dark:border-gray-700 p-2 bg-gray-100 dark:bg-gray-700" />
+                </div>
+              </div>
+              <div>
+                <label for="car-category" class="block text-sm font-medium mb-1">Κατηγορία οχήματος</label>
+                <select id="car-category" required class="w-full rounded border border-gray-300 dark:border-gray-700 p-2 bg-gray-100 dark:bg-gray-700"></select>
+              </div>
+              <div>
+                <label for="notes" class="block text-sm font-medium mb-1">Σημειώσεις</label>
+                <textarea id="notes" rows="3" class="w-full rounded border border-gray-300 dark:border-gray-700 p-2 bg-gray-100 dark:bg-gray-700"></textarea>
+              </div>
+            </div>
+          </div>
+
+          <!-- Extras selection -->
+          <div>
+            <label class="block text-sm font-medium mb-2">Extras (προαιρετικά)</label>
+            <div id="extras-container" class="space-y-2"></div>
+          </div>
+
+          <!-- Payment method -->
+          <div>
+            <label for="payment-method" class="block text-sm font-medium mb-1">Τρόπος πληρωμής</label>
+            <select id="payment-method" required class="w-full rounded border border-gray-300 dark:border-gray-700 p-2 bg-gray-100 dark:bg-gray-700"></select>
+          </div>
+
+          <!-- Price summary -->
+          <div id="price-summary" class="bg-gray-50 dark:bg-gray-800 rounded p-4 text-sm text-gray-700 dark:text-gray-300">
+            Επιλέξτε ημερομηνίες και υπηρεσίες για να υπολογίσετε την τιμή.
+          </div>
+
+          <!-- Submit button -->
+          <div>
+            <button type="submit" class="bg-blue-600 hover:bg-blue-500 text-white font-semibold px-6 py-3 rounded w-full md:w-auto">Ολοκλήρωση Κράτησης</button>
+          </div>
+        </form>
+      </section>
+
+      <!-- Concierge section (VIP) -->
+      <section id="concierge" class="tab-section hidden space-y-8">
+        <h2 class="text-2xl font-bold">Concierge VIP</h2>
+        <p class="text-sm md:text-base text-gray-700 dark:text-gray-300 max-w-3xl">Αποκτήστε πρόσβαση σε 24/7 γραμμή εξυπηρέτησης, ιδιωτικές μεταφορές και εξατομικευμένες συστάσεις. Είμαστε εδώ για να κάνουμε κάθε σας επιθυμία πραγματικότητα.</p>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+          <div class="p-6 bg-white dark:bg-gray-800 rounded-lg shadow flex flex-col space-y-2">
+            <h3 class="font-semibold">24/7 Concierge</h3>
+            <p class="text-sm">Άμεση επικοινωνία με το προσωπικό μας για οποιαδήποτε ανάγκη, από κρατήσεις εστιατορίων μέχρι ιδιωτικές εκδρομές.</p>
+          </div>
+          <div class="p-6 bg-white dark:bg-gray-800 rounded-lg shadow flex flex-col space-y-2">
+            <h3 class="font-semibold">Ιδιωτικές Μεταφορές</h3>
+            <p class="text-sm">Λίμο, helitaxi ή πολυτελή οχήματα – μετακινηθείτε άνετα και με ασφάλεια όπου κι αν βρίσκεστε.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- VIP Deals section (VIP) -->
+      <section id="deals" class="tab-section hidden space-y-8">
+        <h2 class="text-2xl font-bold">Προσφορές VIP</h2>
+        <p class="text-sm md:text-base text-gray-700 dark:text-gray-300 max-w-3xl">Απολαύστε αποκλειστικές προσφορές σε θεραπείες spa, tasting experiences, ιδιωτικές κρουαζιέρες και άλλα. Οι προσφορές μας ανανεώνονται συχνά για τους απαιτητικούς επισκέπτες.</p>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+          <div class="p-6 bg-white dark:bg-gray-800 rounded-lg shadow flex flex-col space-y-2">
+            <h3 class="font-semibold">Spa & Wellness</h3>
+            <p class="text-sm">Αποκλειστικές εκπτώσεις σε πολυτελή σπα και κέντρα ευεξίας στην Κρήτη.</p>
+          </div>
+          <div class="p-6 bg-white dark:bg-gray-800 rounded-lg shadow flex flex-col space-y-2">
+            <h3 class="font-semibold">Private Tastings</h3>
+            <p class="text-sm">Γευτείτε τα καλύτερα κρασιά και προϊόντα της Κρήτης με ιδιωτικές ξεναγήσεις.</p>
+          </div>
+          <div class="p-6 bg-white dark:bg-gray-800 rounded-lg shadow flex flex-col space-y-2">
+            <h3 class="font-semibold">Secret Spots</h3>
+            <p class="text-sm">Αποκαλύψτε κρυμμένους θησαυρούς που μόνο οι ντόπιοι γνωρίζουν – ειδικά για VIP.</p>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Footer with legal links -->
+    <footer class="bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 py-6 text-center space-x-4 text-sm">
+      <a href="#" onclick="openModal('terms')" class="hover:text-blue-600">Όροι Χρήσης</a>
+      <span>|</span>
+      <a href="#" onclick="openModal('privacy')" class="hover:text-blue-600">Πολιτική Απορρήτου</a>
+      <span>|</span>
+      <a href="#" onclick="openModal('cookies')" class="hover:text-blue-600">Cookies</a>
+      <span>|</span>
+      <a href="#" onclick="openModal('imprint')" class="hover:text-blue-600">Imprint</a>
+    </footer>
+
+    <!-- External script implementing behaviour -->
+    <script src="script.js"></script>
+  </body>
+</html>
